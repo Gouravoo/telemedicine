@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/models.dart';
 
 /// ──────────────────────────────────────────────────────────────
@@ -20,60 +22,69 @@ class AuthService {
 
   /// Stream of auth state changes
   Stream<UserModel?> authStateChanges() async* {
-    yield _currentUser;
+    await for (final user in FirebaseAuth.instance.authStateChanges()) {
+      if (user == null) {
+        _currentUser = null;
+        yield null;
+      } else {
+        // Fetch user role from Firestore
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (doc.exists) {
+          _currentUser = UserModel.fromJson(doc.data()!);
+        } else {
+          // If no doc exists, create a default patient profile
+          _currentUser = UserModel(
+            uid: user.uid,
+            name: user.displayName ?? _nameFromEmail(user.email ?? 'User'),
+            email: user.email ?? '',
+            role: UserRole.patient,
+            createdAt: DateTime.now(),
+          );
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).set(_currentUser!.toJson());
+        }
+        yield _currentUser;
+      }
+    }
   }
 
   /// Sign in with email & password
   Future<UserModel> signInWithEmail(String email, String password) async {
-    // TODO: Replace with Firebase Auth
-    // final credential = await FirebaseAuth.instance
-    //     .signInWithEmailAndPassword(email: email, password: password);
-    // final uid = credential.user!.uid;
-    // final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-    // return UserModel.fromJson(doc.data()!);
-
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    // Mock: determine role from email
-    UserRole role = UserRole.patient;
-    if (email.contains('doctor') || email.contains('dr')) {
-      role = UserRole.doctor;
-    } else if (email.contains('admin')) {
-      role = UserRole.admin;
+    final credential = await FirebaseAuth.instance
+        .signInWithEmailAndPassword(email: email, password: password);
+    final uid = credential.user!.uid;
+    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    
+    if (doc.exists) {
+      _currentUser = UserModel.fromJson(doc.data()!);
+    } else {
+      throw Exception('User profile not found in database.');
     }
-
-    _currentUser = UserModel(
-      uid: 'mock_${email.hashCode}',
-      name: _nameFromEmail(email),
-      email: email,
-      phone: '+91 98765 43210',
-      role: role,
-      createdAt: DateTime.now(),
-    );
     return _currentUser!;
   }
 
   /// Sign in with Google
   Future<UserModel> signInWithGoogle() async {
-    // TODO: Replace with Google Sign-In + Firebase Auth
-    // final googleUser = await GoogleSignIn().signIn();
-    // final googleAuth = await googleUser!.authentication;
-    // final credential = GoogleAuthProvider.credential(
-    //   accessToken: googleAuth.accessToken,
-    //   idToken: googleAuth.idToken,
-    // );
-    // await FirebaseAuth.instance.signInWithCredential(credential);
-
-    await Future.delayed(const Duration(milliseconds: 800));
-    _currentUser = UserModel(
-      uid: 'google_mock_user',
-      name: 'Rahul Sharma',
-      email: 'rahul.sharma@gmail.com',
-      phone: '+91 98765 43210',
-      photoUrl: 'https://ui-avatars.com/api/?name=Rahul+Sharma&background=0F9D8C&color=fff&size=200',
-      role: UserRole.patient,
-      createdAt: DateTime.now(),
-    );
+    // For web, we can use signInWithPopup
+    final googleProvider = GoogleAuthProvider();
+    final credential = await FirebaseAuth.instance.signInWithPopup(googleProvider);
+    
+    final uid = credential.user!.uid;
+    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    
+    if (doc.exists) {
+      _currentUser = UserModel.fromJson(doc.data()!);
+    } else {
+      _currentUser = UserModel(
+        uid: uid,
+        name: credential.user!.displayName ?? 'Google User',
+        email: credential.user!.email ?? '',
+        photoUrl: credential.user!.photoURL,
+        role: UserRole.patient, // Default to patient
+        createdAt: DateTime.now(),
+      );
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(_currentUser!.toJson());
+    }
+    
     return _currentUser!;
   }
 
@@ -84,28 +95,37 @@ class AuthService {
     required String password,
     String? phone,
   }) async {
-    // TODO: Replace with Firebase Auth + Firestore write
-    await Future.delayed(const Duration(milliseconds: 800));
+    final credential = await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(email: email, password: password);
+    
+    await credential.user!.updateDisplayName(name);
+    
     _currentUser = UserModel(
-      uid: 'new_${email.hashCode}',
+      uid: credential.user!.uid,
       name: name,
       email: email,
       phone: phone,
       role: UserRole.patient,
       createdAt: DateTime.now(),
     );
+    
+    // Save to Firestore
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(credential.user!.uid)
+        .set(_currentUser!.toJson());
+        
     return _currentUser!;
   }
 
   /// Send password reset email
   Future<void> resetPassword(String email) async {
-    // TODO: FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-    await Future.delayed(const Duration(milliseconds: 500));
+    await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
   }
 
   /// Sign out
   Future<void> signOut() async {
-    // TODO: await FirebaseAuth.instance.signOut();
+    await FirebaseAuth.instance.signOut();
     _currentUser = null;
   }
 
