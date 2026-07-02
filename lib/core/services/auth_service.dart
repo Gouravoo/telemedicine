@@ -144,7 +144,6 @@ class AuthService {
     return _currentUser!;
   }
 
-  /// Register new patient
   Future<UserModel> registerPatient({
     required String name,
     required String email,
@@ -167,12 +166,18 @@ class AuthService {
         createdAt: DateTime.now(),
       );
       
-      // Save to Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(credential.user!.uid)
-          .set(_currentUser!.toJson())
-          .timeout(const Duration(seconds: 10));
+      try {
+        // Save to Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(credential.user!.uid)
+            .set(_currentUser!.toJson())
+            .timeout(const Duration(seconds: 10));
+      } catch (firestoreError) {
+        print("Firestore save delayed or failed (client offline?): $firestoreError");
+        // We still return the user so they can access the app.
+        // Firestore will automatically sync the data when it reconnects.
+      }
           
       return _currentUser!;
     } catch (e) {
