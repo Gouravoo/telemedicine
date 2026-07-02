@@ -19,7 +19,7 @@ final isLoadingProvider = StateProvider<bool>((ref) => false);
 
 final doctorListProvider = FutureProvider.family<List<DoctorModel>, DoctorFilter>(
   (ref, filter) async {
-    final service = ref.read(firestoreServiceProvider);
+    final service = ref.read(databaseServiceProvider);
     return service.getDoctors(
       specialty: filter.specialty,
       searchQuery: filter.searchQuery,
@@ -30,13 +30,13 @@ final doctorListProvider = FutureProvider.family<List<DoctorModel>, DoctorFilter
 
 final doctorDetailProvider = FutureProvider.family<DoctorModel?, String>(
   (ref, doctorId) async {
-    final service = ref.read(firestoreServiceProvider);
+    final service = ref.read(databaseServiceProvider);
     return service.getDoctor(doctorId);
   },
 );
 
 final specialtiesProvider = Provider<List<String>>((ref) {
-  final service = ref.read(firestoreServiceProvider);
+  final service = ref.read(databaseServiceProvider);
   return service.getSpecialties();
 });
 
@@ -45,7 +45,7 @@ final specialtiesProvider = Provider<List<String>>((ref) {
 final patientAppointmentsProvider =
     FutureProvider.family<List<AppointmentModel>, String>(
   (ref, patientId) async {
-    final service = ref.read(firestoreServiceProvider);
+    final service = ref.read(databaseServiceProvider);
     return service.getAppointments(patientId: patientId);
   },
 );
@@ -53,14 +53,14 @@ final patientAppointmentsProvider =
 final doctorAppointmentsProvider =
     FutureProvider.family<List<AppointmentModel>, String>(
   (ref, doctorId) async {
-    final service = ref.read(firestoreServiceProvider);
+    final service = ref.read(databaseServiceProvider);
     return service.getAppointments(doctorId: doctorId);
   },
 );
 
 final allAppointmentsProvider = FutureProvider<List<AppointmentModel>>(
   (ref) async {
-    final service = ref.read(firestoreServiceProvider);
+    final service = ref.read(databaseServiceProvider);
     return service.getAllAppointments();
   },
 );
@@ -69,7 +69,7 @@ final allAppointmentsProvider = FutureProvider<List<AppointmentModel>>(
 
 final allPatientsProvider = FutureProvider<List<PatientModel>>(
   (ref) async {
-    final service = ref.read(firestoreServiceProvider);
+    final service = ref.read(databaseServiceProvider);
     return service.getAllPatients();
   },
 );
@@ -78,7 +78,7 @@ final allPatientsProvider = FutureProvider<List<PatientModel>>(
 
 final healthTipsProvider = FutureProvider<List<HealthTipModel>>(
   (ref) async {
-    final service = ref.read(firestoreServiceProvider);
+    final service = ref.read(databaseServiceProvider);
     return service.getHealthTips();
   },
 );

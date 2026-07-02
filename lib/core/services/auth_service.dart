@@ -1,46 +1,51 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../models/models.dart';
 
 /// ──────────────────────────────────────────────────────────────
-/// AUTH SERVICE — All Firebase Auth operations in one place
-/// ──────────────────────────────────────────────────────────────
-/// When Firebase is connected, replace mock implementations
-/// with actual Firebase Auth calls.
-///
-/// Usage: ref.read(authServiceProvider).signInWithEmail(...)
+/// AUTH SERVICE — Supabase Migration
 /// ──────────────────────────────────────────────────────────────
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
 class AuthService {
-  // Current user state (mock)
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
   UserModel? _currentUser;
   UserModel? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null;
 
   /// Stream of auth state changes
   Stream<UserModel?> authStateChanges() async* {
-    await for (final user in FirebaseAuth.instance.authStateChanges()) {
+    await for (final authState in _supabase.auth.onAuthStateChange) {
+      final user = authState.session?.user;
       if (user == null) {
         _currentUser = null;
         yield null;
       } else {
-        // Fetch user role from Firestore
-        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-        if (doc.exists) {
-          _currentUser = UserModel.fromJson(doc.data()!);
-        } else {
-          // If no doc exists, create a default patient profile
-          _currentUser = UserModel(
-            uid: user.uid,
-            name: user.displayName ?? _nameFromEmail(user.email ?? 'User'),
-            email: user.email ?? '',
-            role: UserRole.patient,
-            createdAt: DateTime.now(),
-          );
-          await FirebaseFirestore.instance.collection('users').doc(user.uid).set(_currentUser!.toJson());
+        try {
+          final response = await _supabase
+              .from('users')
+              .select()
+              .eq('uid', user.id)
+              .maybeSingle();
+              
+          if (response != null) {
+            _currentUser = UserModel.fromJson(response);
+          } else {
+            // Create default patient profile
+            _currentUser = UserModel(
+              uid: user.id,
+              name: user.userMetadata?['full_name'] ?? _nameFromEmail(user.email ?? 'User'),
+              email: user.email ?? '',
+              role: UserRole.patient,
+              createdAt: DateTime.now(),
+            );
+            await _supabase.from('users').insert(_currentUser!.toJson());
+          }
+        } catch (e) {
+          print('Error fetching Supabase user profile: $e');
         }
         yield _currentUser;
       }
@@ -50,7 +55,7 @@ class AuthService {
   Future<UserModel> signInWithEmail(String email, String password) async {
     // Demo login bypass
     if (email.endsWith('@demo.com')) {
-      await Future.delayed(const Duration(seconds: 1)); // simulate network delay
+      await Future.delayed(const Duration(seconds: 1));
       UserRole role = UserRole.patient;
       if (email.contains('doctor')) role = UserRole.doctor;
       if (email.contains('admin')) role = UserRole.admin;
@@ -66,33 +71,25 @@ class AuthService {
     }
 
     try {
-      final credential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: password)
-          .timeout(const Duration(seconds: 10));
-      final uid = credential.user!.uid;
-      
-      try {
-        final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get()
-            .timeout(const Duration(seconds: 10));
-        
-        if (doc.exists) {
-          _currentUser = UserModel.fromJson(doc.data()!);
-        } else {
-          // Fallback if doc doesn't exist but auth succeeded
-          _currentUser = UserModel(
-            uid: uid,
-            name: credential.user!.displayName ?? email.split('@')[0],
-            email: email,
-            role: UserRole.patient,
-            createdAt: DateTime.now(),
-          );
-        }
-      } catch (firestoreError) {
-        // Fallback for "client is offline" or gRPC firewall issues
-        print("Firestore fetch failed (client offline?): $firestoreError");
+      final AuthResponse res = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      final user = res.user;
+      if (user == null) throw Exception('Login failed');
+
+      final response = await _supabase
+          .from('users')
+          .select()
+          .eq('uid', user.id)
+          .maybeSingle();
+          
+      if (response != null) {
+        _currentUser = UserModel.fromJson(response);
+      } else {
         _currentUser = UserModel(
-          uid: uid,
-          name: credential.user!.displayName ?? email.split('@')[0],
+          uid: user.id,
+          name: user.userMetadata?['full_name'] ?? email.split('@')[0],
           email: email,
           role: UserRole.patient,
           createdAt: DateTime.now(),
@@ -104,44 +101,59 @@ class AuthService {
     }
   }
 
-  /// Sign in with Google
   Future<UserModel> signInWithGoogle() async {
-    // For web, we can use signInWithPopup
-    final googleProvider = GoogleAuthProvider();
-    final credential = await FirebaseAuth.instance.signInWithPopup(googleProvider);
-    
-    final uid = credential.user!.uid;
-    
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get()
-          .timeout(const Duration(seconds: 10));
+      const webClientId = 'YOUR_GOOGLE_WEB_CLIENT_ID';
+      const iosClientId = 'YOUR_GOOGLE_IOS_CLIENT_ID';
       
-      if (doc.exists) {
-        _currentUser = UserModel.fromJson(doc.data()!);
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: iosClientId,
+        serverClientId: webClientId,
+      );
+      
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) throw Exception('Google sign in aborted');
+      
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+      
+      if (accessToken == null || idToken == null) {
+        throw Exception('No access token found');
+      }
+
+      final AuthResponse res = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+      
+      final user = res.user;
+      if (user == null) throw Exception('Supabase auth failed');
+
+      final response = await _supabase
+          .from('users')
+          .select()
+          .eq('uid', user.id)
+          .maybeSingle();
+          
+      if (response != null) {
+        _currentUser = UserModel.fromJson(response);
       } else {
         _currentUser = UserModel(
-          uid: uid,
-          name: credential.user!.displayName ?? 'Google User',
-          email: credential.user!.email ?? '',
-          photoUrl: credential.user!.photoURL,
-          role: UserRole.patient, // Default to patient
+          uid: user.id,
+          name: user.userMetadata?['full_name'] ?? 'Google User',
+          email: user.email ?? '',
+          photoUrl: user.userMetadata?['avatar_url'],
+          role: UserRole.patient,
           createdAt: DateTime.now(),
         );
-        await FirebaseFirestore.instance.collection('users').doc(uid).set(_currentUser!.toJson());
+        await _supabase.from('users').insert(_currentUser!.toJson());
       }
-    } catch (firestoreError) {
-      print("Firestore fetch failed during Google login (client offline?): $firestoreError");
-      _currentUser = UserModel(
-        uid: uid,
-        name: credential.user!.displayName ?? 'Google User',
-        email: credential.user!.email ?? '',
-        photoUrl: credential.user!.photoURL,
-        role: UserRole.patient, // Default to patient
-        createdAt: DateTime.now(),
-      );
+      return _currentUser!;
+    } catch (e) {
+      throw Exception('Google login failed: $e');
     }
-    
-    return _currentUser!;
   }
 
   Future<UserModel> registerPatient({
@@ -151,14 +163,17 @@ class AuthService {
     String? phone,
   }) async {
     try {
-      final credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password)
-          .timeout(const Duration(seconds: 10));
+      final AuthResponse res = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {'full_name': name},
+      );
       
-      await credential.user!.updateDisplayName(name).timeout(const Duration(seconds: 5));
+      final user = res.user;
+      if (user == null) throw Exception('Registration failed');
       
       _currentUser = UserModel(
-        uid: credential.user!.uid,
+        uid: user.id,
         name: name,
         email: email,
         phone: phone,
@@ -166,33 +181,19 @@ class AuthService {
         createdAt: DateTime.now(),
       );
       
-      try {
-        // Save to Firestore
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(credential.user!.uid)
-            .set(_currentUser!.toJson())
-            .timeout(const Duration(seconds: 10));
-      } catch (firestoreError) {
-        print("Firestore save delayed or failed (client offline?): $firestoreError");
-        // We still return the user so they can access the app.
-        // Firestore will automatically sync the data when it reconnects.
-      }
-          
+      await _supabase.from('users').insert(_currentUser!.toJson());
       return _currentUser!;
     } catch (e) {
       throw Exception('Registration failed: $e');
     }
   }
 
-  /// Send password reset email
   Future<void> resetPassword(String email) async {
-    await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+    await _supabase.auth.resetPasswordForEmail(email);
   }
 
-  /// Sign out
   Future<void> signOut() async {
-    await FirebaseAuth.instance.signOut();
+    await _supabase.auth.signOut();
     _currentUser = null;
   }
 

@@ -5,7 +5,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/models/doctor_model.dart';
 import '../../../../core/providers/app_providers.dart';
-import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/database_service.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/shared_widgets.dart';
 
@@ -118,11 +118,11 @@ class AdminDoctorsScreen extends ConsumerWidget {
                             onPressed: () async {
                               if (d.isActive) {
                                 await ref
-                                    .read(firestoreServiceProvider)
+                                    .read(databaseServiceProvider)
                                     .deleteDoctor(d.id);
                               } else {
                                 await ref
-                                    .read(firestoreServiceProvider)
+                                    .read(databaseServiceProvider)
                                     .updateDoctor(
                                         d.copyWith(isActive: true));
                               }
@@ -193,7 +193,7 @@ class AdminDoctorsScreen extends ConsumerWidget {
                   decoration: const InputDecoration(hintText: 'Specialty'),
                   value: specialty,
                   items: ref
-                      .read(firestoreServiceProvider)
+                      .read(databaseServiceProvider)
                       .getSpecialties()
                       .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                       .toList(),
@@ -257,7 +257,7 @@ class AdminDoctorsScreen extends ConsumerWidget {
                 availability: isEditing ? doctor.availability : {},
               );
 
-              final service = ref.read(firestoreServiceProvider);
+              final service = ref.read(databaseServiceProvider);
               if (isEditing) {
                 await service.updateDoctor(newDoctor);
               } else {

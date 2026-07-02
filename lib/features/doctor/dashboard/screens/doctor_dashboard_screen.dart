@@ -6,7 +6,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/models/appointment_model.dart';
 import '../../../../core/providers/app_providers.dart';
-import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/database_service.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/shared_widgets.dart';
 
@@ -226,7 +226,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
                   height: 36,
                   child: OutlinedButton(
                     onPressed: () async {
-                      final service = ref.read(firestoreServiceProvider);
+                      final service = ref.read(databaseServiceProvider);
                       await service.updateAppointmentStatus(
                         appointment.id,
                         AppointmentStatus.rejected,
@@ -248,7 +248,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
                   height: 36,
                   child: ElevatedButton(
                     onPressed: () async {
-                      final service = ref.read(firestoreServiceProvider);
+                      final service = ref.read(databaseServiceProvider);
                       await service.updateAppointmentStatus(
                         appointment.id,
                         AppointmentStatus.accepted,

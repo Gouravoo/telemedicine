@@ -6,7 +6,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/models/models.dart';
 import '../../../../core/providers/app_providers.dart';
-import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/database_service.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/shared_widgets.dart';
 import 'package:uuid/uuid.dart';
@@ -225,7 +225,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
   Future<void> _confirmBooking(DoctorModel doctor) async {
     setState(() => _isBooking = true);
     final user = ref.read(currentUserProvider);
-    final firestoreService = ref.read(firestoreServiceProvider);
+    final firestoreService = ref.read(databaseServiceProvider);
 
     final appointment = AppointmentModel(
       id: const Uuid().v4(),

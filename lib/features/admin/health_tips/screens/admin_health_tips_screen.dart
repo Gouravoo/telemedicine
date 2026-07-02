@@ -5,7 +5,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/models/health_tip_model.dart';
 import '../../../../core/providers/app_providers.dart';
-import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/database_service.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/shared_widgets.dart';
 
@@ -179,7 +179,7 @@ class AdminHealthTipsScreen extends ConsumerWidget {
                 createdBy: 'admin',
               );
               await ref
-                  .read(firestoreServiceProvider)
+                  .read(databaseServiceProvider)
                   .addHealthTip(tip);
               ref.invalidate(healthTipsProvider);
               if (context.mounted) Navigator.pop(context);

@@ -6,7 +6,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/models/appointment_model.dart';
 import '../../../../core/providers/app_providers.dart';
-import '../../../../core/services/firestore_service.dart';
+import '../../../../core/services/database_service.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/shared_widgets.dart';
 
@@ -121,7 +121,7 @@ class DoctorAppointmentsScreen extends ConsumerWidget {
                     child: OutlinedButton(
                       onPressed: () async {
                         await ref
-                            .read(firestoreServiceProvider)
+                            .read(databaseServiceProvider)
                             .updateAppointmentStatus(
                                 a.id, AppointmentStatus.rejected);
                         ref.invalidate(doctorAppointmentsProvider);
@@ -141,7 +141,7 @@ class DoctorAppointmentsScreen extends ConsumerWidget {
                     child: ElevatedButton(
                       onPressed: () async {
                         await ref
-                            .read(firestoreServiceProvider)
+                            .read(databaseServiceProvider)
                             .updateAppointmentStatus(
                                 a.id, AppointmentStatus.accepted);
                         ref.invalidate(doctorAppointmentsProvider);
@@ -185,7 +185,7 @@ class DoctorAppointmentsScreen extends ConsumerWidget {
                   child: OutlinedButton(
                     onPressed: () async {
                       await ref
-                          .read(firestoreServiceProvider)
+                          .read(databaseServiceProvider)
                           .updateAppointmentStatus(
                               a.id, AppointmentStatus.completed);
                       ref.invalidate(doctorAppointmentsProvider);

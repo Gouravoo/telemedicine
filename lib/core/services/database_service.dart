@@ -1,36 +1,33 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 
 /// ──────────────────────────────────────────────────────────────
-/// FIRESTORE SERVICE — All database operations centralized
-/// ──────────────────────────────────────────────────────────────
-/// Uses FirebaseFirestore.instance for real data.
+/// DATABASE SERVICE — Supabase Migration
 /// ──────────────────────────────────────────────────────────────
 
-final firestoreServiceProvider =
-    Provider<FirestoreService>((ref) => FirestoreService());
+final databaseServiceProvider =
+    Provider<DatabaseService>((ref) => DatabaseService());
 
-class FirestoreService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+class DatabaseService {
+  final SupabaseClient _db = Supabase.instance.client;
 
   // ─── DOCTORS ───
 
-  /// Get all active doctors
   Future<List<DoctorModel>> getDoctors({
     String? specialty,
     String? searchQuery,
     String sortBy = 'rating',
   }) async {
-    Query query = _db.collection('doctors').where('isActive', isEqualTo: true);
+    var query = _db.from('doctors').select().eq('is_active', true);
 
     if (specialty != null && specialty.isNotEmpty) {
-      query = query.where('specialty', isEqualTo: specialty);
+      query = query.eq('specialty', specialty);
     }
 
-    final snapshot = await query.get();
-    var doctors = snapshot.docs
-        .map((doc) => DoctorModel.fromJson(doc.data() as Map<String, dynamic>))
+    final response = await query;
+    var doctors = response
+        .map((doc) => DoctorModel.fromJson(doc))
         .toList();
 
     if (searchQuery != null && searchQuery.isNotEmpty) {
@@ -60,109 +57,95 @@ class FirestoreService {
     return doctors;
   }
 
-  /// Get a single doctor by ID
   Future<DoctorModel?> getDoctor(String doctorId) async {
-    final doc = await _db.collection('doctors').doc(doctorId).get();
-    if (doc.exists) {
-      return DoctorModel.fromJson(doc.data()!);
+    final response = await _db.from('doctors').select().eq('id', doctorId).maybeSingle();
+    if (response != null) {
+      return DoctorModel.fromJson(response);
     }
     return null;
   }
 
-  /// Add a new doctor (Admin only)
   Future<void> addDoctor(DoctorModel doctor) async {
-    await _db.collection('doctors').doc(doctor.id).set(doctor.toJson());
+    await _db.from('doctors').insert(doctor.toJson());
   }
 
-  /// Update doctor profile
   Future<void> updateDoctor(DoctorModel doctor) async {
-    await _db.collection('doctors').doc(doctor.id).update(doctor.toJson());
+    await _db.from('doctors').update(doctor.toJson()).eq('id', doctor.id);
   }
 
-  /// Soft-delete doctor
   Future<void> deleteDoctor(String doctorId) async {
-    await _db.collection('doctors').doc(doctorId).update({'isActive': false});
+    await _db.from('doctors').update({'is_active': false}).eq('id', doctorId);
   }
 
   // ─── APPOINTMENTS ───
 
-  /// Get appointments for a user (patient or doctor)
   Future<List<AppointmentModel>> getAppointments({
     String? patientId,
     String? doctorId,
     AppointmentStatus? status,
   }) async {
-    Query query = _db.collection('appointments');
+    var query = _db.from('appointments').select();
 
     if (patientId != null) {
-      query = query.where('patientId', isEqualTo: patientId);
+      query = query.eq('patientId', patientId);
     }
     if (doctorId != null) {
-      query = query.where('doctorId', isEqualTo: doctorId);
+      query = query.eq('doctorId', doctorId);
     }
     if (status != null) {
-      query = query.where('status', isEqualTo: status.name);
+      query = query.eq('status', status.name);
     }
 
-    final snapshot = await query.get();
-    var list = snapshot.docs
-        .map((doc) => AppointmentModel.fromJson(doc.data() as Map<String, dynamic>))
+    final response = await query;
+    var list = response
+        .map((doc) => AppointmentModel.fromJson(doc))
         .toList();
 
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
   }
 
-  /// Get all appointments (Admin)
   Future<List<AppointmentModel>> getAllAppointments() async {
-    final snapshot = await _db.collection('appointments').get();
-    var list = snapshot.docs
-        .map((doc) => AppointmentModel.fromJson(doc.data() as Map<String, dynamic>))
+    final response = await _db.from('appointments').select();
+    var list = response
+        .map((doc) => AppointmentModel.fromJson(doc))
         .toList();
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
   }
 
-  /// Create a new appointment
   Future<AppointmentModel> createAppointment(AppointmentModel appointment) async {
-    // Generate an ID if it's empty or keep existing
-    final docRef = _db.collection('appointments').doc(appointment.id);
-    final appointmentToSave = appointment.copyWith(id: docRef.id);
-    await docRef.set(appointmentToSave.toJson());
-    return appointmentToSave;
+    // Generate UUID if empty
+    final idToSave = appointment.id.isEmpty ? _db.auth.currentUser!.id : appointment.id; // Just as a fallback
+    // Usually UUID is generated by the database if not provided, but we can rely on Supabase returning the inserted row.
+    final response = await _db.from('appointments').insert(appointment.toJson()).select().single();
+    return AppointmentModel.fromJson(response);
   }
 
-  /// Update appointment status
   Future<void> updateAppointmentStatus(
       String appointmentId, AppointmentStatus status) async {
-    await _db.collection('appointments').doc(appointmentId).update({
+    await _db.from('appointments').update({
       'status': status.name,
       'updatedAt': DateTime.now().toIso8601String(),
-    });
+    }).eq('id', appointmentId);
   }
 
   // ─── PATIENTS ───
 
-  /// Get all patients (Admin)
   Future<List<PatientModel>> getAllPatients() async {
-    // This fetches all users with role patient from users collection
-    // Wait, PatientModel is different. We should fetch from users and map.
-    // Or just fetch all from `users` collection where role is 'patient'.
-    final snapshot = await _db.collection('users').where('role', isEqualTo: 'patient').get();
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
+    final response = await _db.from('users').select().eq('role', 'patient');
+    return response.map((doc) {
       return PatientModel(
-        uid: data['uid'] ?? doc.id,
-        age: 0, // Age not in user model directly right now
+        uid: doc['uid'],
+        age: 0,
         gender: 'Not specified',
         bloodGroup: 'Not specified',
       );
     }).toList();
   }
 
-  /// Save patient profile details
   Future<void> savePatientProfile(PatientModel patient) async {
-    await _db.collection('patient_profiles').doc(patient.uid).set({
+    await _db.from('patient_profiles').upsert({
       'uid': patient.uid,
       'age': patient.age,
       'gender': patient.gender,
@@ -172,19 +155,15 @@ class FirestoreService {
 
   // ─── HEALTH TIPS ───
 
-  /// Get health tips
   Future<List<HealthTipModel>> getHealthTips() async {
-    final snapshot = await _db.collection('health_tips').get();
-    return snapshot.docs
-        .map((doc) => HealthTipModel.fromJson(doc.data() as Map<String, dynamic>))
+    final response = await _db.from('health_tips').select();
+    return response
+        .map((doc) => HealthTipModel.fromJson(doc))
         .toList();
   }
 
-  /// Add health tip (Admin)
   Future<void> addHealthTip(HealthTipModel tip) async {
-    final docRef = _db.collection('health_tips').doc(tip.id);
-    final tipToSave = tip.copyWith(id: docRef.id);
-    await docRef.set(tipToSave.toJson());
+    await _db.from('health_tips').insert(tip.toJson());
   }
 
   // ─── SPECIALTIES ───
