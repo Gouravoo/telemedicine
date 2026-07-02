@@ -1,6 +1,9 @@
 {
   "name": "aarogyaplus-vercel-api",
   "version": "1.0.0",
+  "scripts": {
+    "vercel-build": "bash install.sh && flutter/bin/flutter build web --release"
+  },
   "dependencies": {
     "agora-access-token": "^2.0.4"
   }
