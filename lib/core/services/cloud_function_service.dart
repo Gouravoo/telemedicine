@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// ──────────────────────────────────────────────────────────────
 /// CLOUD FUNCTION SERVICE — Firebase Cloud Function calls
@@ -18,27 +19,23 @@ class CloudFunctionService {
     required String uid,
   }) async {
     try {
-      // Use absolute URL in web if not deployed, but usually /api works in Vercel.
-      // If we are testing locally without Vercel Dev, it might throw an error.
-      String url = '/api/generate_token?channelName=$channelName&uid=$uid';
-      
-      // Fallback for local development
-      if (kDebugMode && !kIsWeb) {
+      if (kDebugMode && !kIsWeb && const bool.fromEnvironment('MOCK_AGORA', defaultValue: false)) {
          return 'mock_token_not_on_web';
       }
 
-      final response = await http.get(Uri.parse(url));
+      final response = await Supabase.instance.client.functions.invoke(
+        'agora-token',
+        body: {'channelName': channelName, 'uid': uid},
+      );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['token'] as String;
+      if (response.status == 200) {
+        return response.data['token'] as String;
       } else {
-        debugPrint('Failed to generate token: ${response.statusCode}');
-        // Fallback mock token just in case testing locally without Vercel CLI
+        debugPrint('Failed to generate token: ${response.status} - ${response.data}');
         return 'mock_agora_token_${channelName}_$uid';
       }
     } catch (e) {
-      debugPrint('Error calling token API: $e');
+      debugPrint('Error calling Supabase edge function: $e');
       return 'mock_agora_token_${channelName}_$uid';
     }
   }
