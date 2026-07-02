@@ -80,7 +80,7 @@ class PatientProfileScreen extends ConsumerWidget {
                   onPressed: () {
                     ref.read(authServiceProvider).signOut();
                     ref.read(currentUserProvider.notifier).state = null;
-                    context.go('/login');
+                    if (context.mounted) context.go('/login');
                   },
                 ),
               ],

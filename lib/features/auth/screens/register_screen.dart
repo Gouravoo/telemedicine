@@ -52,6 +52,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         phone: _phoneController.text.trim(),
       );
       ref.read(currentUserProvider.notifier).state = user;
+      if (mounted) {
+        switch (user.role) {
+          case UserRole.patient:
+            context.go('/patient/home');
+            break;
+          case UserRole.doctor:
+            context.go('/doctor/dashboard');
+            break;
+          case UserRole.admin:
+            context.go('/admin/dashboard');
+            break;
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

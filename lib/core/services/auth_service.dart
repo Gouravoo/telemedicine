@@ -47,19 +47,41 @@ class AuthService {
     }
   }
 
-  /// Sign in with email & password
   Future<UserModel> signInWithEmail(String email, String password) async {
-    final credential = await FirebaseAuth.instance
-        .signInWithEmailAndPassword(email: email, password: password);
-    final uid = credential.user!.uid;
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-    
-    if (doc.exists) {
-      _currentUser = UserModel.fromJson(doc.data()!);
-    } else {
-      throw Exception('User profile not found in database.');
+    // Demo login bypass
+    if (email.endsWith('@demo.com')) {
+      await Future.delayed(const Duration(seconds: 1)); // simulate network delay
+      UserRole role = UserRole.patient;
+      if (email.contains('doctor')) role = UserRole.doctor;
+      if (email.contains('admin')) role = UserRole.admin;
+      
+      _currentUser = UserModel(
+        uid: 'demo_${role.name}_123',
+        name: 'Demo ${role.name.toUpperCase()}',
+        email: email,
+        role: role,
+        createdAt: DateTime.now(),
+      );
+      return _currentUser!;
     }
-    return _currentUser!;
+
+    try {
+      final credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password)
+          .timeout(const Duration(seconds: 10));
+      final uid = credential.user!.uid;
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get()
+          .timeout(const Duration(seconds: 10));
+      
+      if (doc.exists) {
+        _currentUser = UserModel.fromJson(doc.data()!);
+      } else {
+        throw Exception('User profile not found in database.');
+      }
+      return _currentUser!;
+    } catch (e) {
+      throw Exception('Authentication failed: $e');
+    }
   }
 
   /// Sign in with Google
@@ -95,27 +117,33 @@ class AuthService {
     required String password,
     String? phone,
   }) async {
-    final credential = await FirebaseAuth.instance
-        .createUserWithEmailAndPassword(email: email, password: password);
-    
-    await credential.user!.updateDisplayName(name);
-    
-    _currentUser = UserModel(
-      uid: credential.user!.uid,
-      name: name,
-      email: email,
-      phone: phone,
-      role: UserRole.patient,
-      createdAt: DateTime.now(),
-    );
-    
-    // Save to Firestore
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(credential.user!.uid)
-        .set(_currentUser!.toJson());
-        
-    return _currentUser!;
+    try {
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password)
+          .timeout(const Duration(seconds: 10));
+      
+      await credential.user!.updateDisplayName(name).timeout(const Duration(seconds: 5));
+      
+      _currentUser = UserModel(
+        uid: credential.user!.uid,
+        name: name,
+        email: email,
+        phone: phone,
+        role: UserRole.patient,
+        createdAt: DateTime.now(),
+      );
+      
+      // Save to Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(credential.user!.uid)
+          .set(_currentUser!.toJson())
+          .timeout(const Duration(seconds: 10));
+          
+      return _currentUser!;
+    } catch (e) {
+      throw Exception('Registration failed: $e');
+    }
   }
 
   /// Send password reset email

@@ -41,8 +41,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _passwordController.text,
       );
       ref.read(currentUserProvider.notifier).state = user;
-      // GoRouter redirect will handle navigation
-    } catch (e) {
+      if (mounted) {
+        switch (user.role) {
+          case UserRole.patient:
+            context.go('/patient/home');
+            break;
+          case UserRole.doctor:
+            context.go('/doctor/dashboard');
+            break;
+          case UserRole.admin:
+            context.go('/admin/dashboard');
+            break;
+        }
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Login failed: $e')),
@@ -59,6 +70,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final authService = ref.read(authServiceProvider);
       final user = await authService.signInWithGoogle();
       ref.read(currentUserProvider.notifier).state = user;
+      if (mounted) {
+        switch (user.role) {
+          case UserRole.patient:
+            context.go('/patient/home');
+            break;
+          case UserRole.doctor:
+            context.go('/doctor/dashboard');
+            break;
+          case UserRole.admin:
+            context.go('/admin/dashboard');
+            break;
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -37,12 +37,13 @@ import '../features/admin/health_tips/screens/admin_health_tips_screen.dart';
 
 /// App router provider with role-based routing
 final routerProvider = Provider<GoRouter>((ref) {
-  final user = ref.watch(currentUserProvider);
-
+  // Read instead of watch so GoRouter is not recreated on auth state change
+  // which causes the app to get stuck.
   return GoRouter(
     initialLocation: '/',
     debugLogDiagnostics: true,
     redirect: (context, state) {
+      final user = ref.read(currentUserProvider);
       final loggedIn = user != null;
       final isAuthRoute = state.matchedLocation == '/' ||
           state.matchedLocation == '/login' ||
