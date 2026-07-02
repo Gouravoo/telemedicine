@@ -1,0 +1,7 @@
+{
+  "name": "aarogyaplus-vercel-api",
+  "version": "1.0.0",
+  "dependencies": {
+    "agora-access-token": "^2.0.4"
+  }
+}
