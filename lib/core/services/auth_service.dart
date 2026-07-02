@@ -70,13 +70,33 @@ class AuthService {
           .signInWithEmailAndPassword(email: email, password: password)
           .timeout(const Duration(seconds: 10));
       final uid = credential.user!.uid;
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get()
-          .timeout(const Duration(seconds: 10));
       
-      if (doc.exists) {
-        _currentUser = UserModel.fromJson(doc.data()!);
-      } else {
-        throw Exception('User profile not found in database.');
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get()
+            .timeout(const Duration(seconds: 10));
+        
+        if (doc.exists) {
+          _currentUser = UserModel.fromJson(doc.data()!);
+        } else {
+          // Fallback if doc doesn't exist but auth succeeded
+          _currentUser = UserModel(
+            uid: uid,
+            name: credential.user!.displayName ?? email.split('@')[0],
+            email: email,
+            role: UserRole.patient,
+            createdAt: DateTime.now(),
+          );
+        }
+      } catch (firestoreError) {
+        // Fallback for "client is offline" or gRPC firewall issues
+        print("Firestore fetch failed (client offline?): $firestoreError");
+        _currentUser = UserModel(
+          uid: uid,
+          name: credential.user!.displayName ?? email.split('@')[0],
+          email: email,
+          role: UserRole.patient,
+          createdAt: DateTime.now(),
+        );
       }
       return _currentUser!;
     } catch (e) {
@@ -91,11 +111,26 @@ class AuthService {
     final credential = await FirebaseAuth.instance.signInWithPopup(googleProvider);
     
     final uid = credential.user!.uid;
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
     
-    if (doc.exists) {
-      _currentUser = UserModel.fromJson(doc.data()!);
-    } else {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get()
+          .timeout(const Duration(seconds: 10));
+      
+      if (doc.exists) {
+        _currentUser = UserModel.fromJson(doc.data()!);
+      } else {
+        _currentUser = UserModel(
+          uid: uid,
+          name: credential.user!.displayName ?? 'Google User',
+          email: credential.user!.email ?? '',
+          photoUrl: credential.user!.photoURL,
+          role: UserRole.patient, // Default to patient
+          createdAt: DateTime.now(),
+        );
+        await FirebaseFirestore.instance.collection('users').doc(uid).set(_currentUser!.toJson());
+      }
+    } catch (firestoreError) {
+      print("Firestore fetch failed during Google login (client offline?): $firestoreError");
       _currentUser = UserModel(
         uid: uid,
         name: credential.user!.displayName ?? 'Google User',
@@ -104,7 +139,6 @@ class AuthService {
         role: UserRole.patient, // Default to patient
         createdAt: DateTime.now(),
       );
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(_currentUser!.toJson());
     }
     
     return _currentUser!;
