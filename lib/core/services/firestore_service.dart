@@ -1,17 +1,19 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 
 /// ──────────────────────────────────────────────────────────────
 /// FIRESTORE SERVICE — All database operations centralized
 /// ──────────────────────────────────────────────────────────────
-/// Currently uses mock data. Replace with actual Firestore calls.
-/// Backend changes only happen HERE — UI code never touches Firestore.
+/// Uses FirebaseFirestore.instance for real data.
 /// ──────────────────────────────────────────────────────────────
 
 final firestoreServiceProvider =
     Provider<FirestoreService>((ref) => FirestoreService());
 
 class FirestoreService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
   // ─── DOCTORS ───
 
   /// Get all active doctors
@@ -20,18 +22,17 @@ class FirestoreService {
     String? searchQuery,
     String sortBy = 'rating',
   }) async {
-    // TODO: Replace with Firestore query
-    // var query = FirebaseFirestore.instance
-    //     .collection('doctors')
-    //     .where('isActive', isEqualTo: true);
-    // if (specialty != null) query = query.where('specialty', isEqualTo: specialty);
-    
-    await Future.delayed(const Duration(milliseconds: 600));
-    var doctors = List<DoctorModel>.from(_mockDoctors);
+    Query query = _db.collection('doctors').where('isActive', isEqualTo: true);
 
     if (specialty != null && specialty.isNotEmpty) {
-      doctors = doctors.where((d) => d.specialty == specialty).toList();
+      query = query.where('specialty', isEqualTo: specialty);
     }
+
+    final snapshot = await query.get();
+    var doctors = snapshot.docs
+        .map((doc) => DoctorModel.fromJson(doc.data() as Map<String, dynamic>))
+        .toList();
+
     if (searchQuery != null && searchQuery.isNotEmpty) {
       final q = searchQuery.toLowerCase();
       doctors = doctors
@@ -61,34 +62,26 @@ class FirestoreService {
 
   /// Get a single doctor by ID
   Future<DoctorModel?> getDoctor(String doctorId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    try {
-      return _mockDoctors.firstWhere((d) => d.id == doctorId);
-    } catch (_) {
-      return null;
+    final doc = await _db.collection('doctors').doc(doctorId).get();
+    if (doc.exists) {
+      return DoctorModel.fromJson(doc.data()!);
     }
+    return null;
   }
 
   /// Add a new doctor (Admin only)
   Future<void> addDoctor(DoctorModel doctor) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _mockDoctors.add(doctor);
+    await _db.collection('doctors').doc(doctor.id).set(doctor.toJson());
   }
 
   /// Update doctor profile
   Future<void> updateDoctor(DoctorModel doctor) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    final idx = _mockDoctors.indexWhere((d) => d.id == doctor.id);
-    if (idx >= 0) _mockDoctors[idx] = doctor;
+    await _db.collection('doctors').doc(doctor.id).update(doctor.toJson());
   }
 
   /// Soft-delete doctor
   Future<void> deleteDoctor(String doctorId) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    final idx = _mockDoctors.indexWhere((d) => d.id == doctorId);
-    if (idx >= 0) {
-      _mockDoctors[idx] = _mockDoctors[idx].copyWith(isActive: false);
-    }
+    await _db.collection('doctors').doc(doctorId).update({'isActive': false});
   }
 
   // ─── APPOINTMENTS ───
@@ -99,18 +92,22 @@ class FirestoreService {
     String? doctorId,
     AppointmentStatus? status,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    var list = List<AppointmentModel>.from(_mockAppointments);
+    Query query = _db.collection('appointments');
 
     if (patientId != null) {
-      list = list.where((a) => a.patientId == patientId).toList();
+      query = query.where('patientId', isEqualTo: patientId);
     }
     if (doctorId != null) {
-      list = list.where((a) => a.doctorId == doctorId).toList();
+      query = query.where('doctorId', isEqualTo: doctorId);
     }
     if (status != null) {
-      list = list.where((a) => a.status == status).toList();
+      query = query.where('status', isEqualTo: status.name);
     }
+
+    final snapshot = await query.get();
+    var list = snapshot.docs
+        .map((doc) => AppointmentModel.fromJson(doc.data() as Map<String, dynamic>))
+        .toList();
 
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
@@ -118,56 +115,76 @@ class FirestoreService {
 
   /// Get all appointments (Admin)
   Future<List<AppointmentModel>> getAllAppointments() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return List<AppointmentModel>.from(_mockAppointments)
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final snapshot = await _db.collection('appointments').get();
+    var list = snapshot.docs
+        .map((doc) => AppointmentModel.fromJson(doc.data() as Map<String, dynamic>))
+        .toList();
+    list.sort((a, b) => b.date.compareTo(a.date));
+    return list;
   }
 
   /// Create a new appointment
   Future<AppointmentModel> createAppointment(AppointmentModel appointment) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _mockAppointments.add(appointment);
-    return appointment;
+    // Generate an ID if it's empty or keep existing
+    final docRef = _db.collection('appointments').doc(appointment.id);
+    final appointmentToSave = appointment.copyWith(id: docRef.id);
+    await docRef.set(appointmentToSave.toJson());
+    return appointmentToSave;
   }
 
   /// Update appointment status
   Future<void> updateAppointmentStatus(
       String appointmentId, AppointmentStatus status) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    final idx = _mockAppointments.indexWhere((a) => a.id == appointmentId);
-    if (idx >= 0) {
-      _mockAppointments[idx] = _mockAppointments[idx].copyWith(
-        status: status,
-        updatedAt: DateTime.now(),
-      );
-    }
+    await _db.collection('appointments').doc(appointmentId).update({
+      'status': status.name,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
   }
 
   // ─── PATIENTS ───
 
   /// Get all patients (Admin)
   Future<List<PatientModel>> getAllPatients() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _mockPatients;
+    // This fetches all users with role patient from users collection
+    // Wait, PatientModel is different. We should fetch from users and map.
+    // Or just fetch all from `users` collection where role is 'patient'.
+    final snapshot = await _db.collection('users').where('role', isEqualTo: 'patient').get();
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      return PatientModel(
+        uid: data['uid'] ?? doc.id,
+        age: 0, // Age not in user model directly right now
+        gender: 'Not specified',
+        bloodGroup: 'Not specified',
+      );
+    }).toList();
   }
 
-  /// Save patient profile
+  /// Save patient profile details
   Future<void> savePatientProfile(PatientModel patient) async {
-    await Future.delayed(const Duration(milliseconds: 400));
+    await _db.collection('patient_profiles').doc(patient.uid).set({
+      'uid': patient.uid,
+      'age': patient.age,
+      'gender': patient.gender,
+      'bloodGroup': patient.bloodGroup,
+    });
   }
 
   // ─── HEALTH TIPS ───
 
   /// Get health tips
   Future<List<HealthTipModel>> getHealthTips() async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    return _mockHealthTips;
+    final snapshot = await _db.collection('health_tips').get();
+    return snapshot.docs
+        .map((doc) => HealthTipModel.fromJson(doc.data() as Map<String, dynamic>))
+        .toList();
   }
 
   /// Add health tip (Admin)
   Future<void> addHealthTip(HealthTipModel tip) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    _mockHealthTips.add(tip);
+    final docRef = _db.collection('health_tips').doc(tip.id);
+    final tipToSave = tip.copyWith(id: docRef.id);
+    await docRef.set(tipToSave.toJson());
   }
 
   // ─── SPECIALTIES ───
@@ -188,155 +205,4 @@ class FirestoreService {
       'Urologist',
     ];
   }
-
-  // ═══════════════════════════════════════════════════════════════
-  // MOCK DATA — Remove when Firebase is connected
-  // ═══════════════════════════════════════════════════════════════
-
-  final List<DoctorModel> _mockDoctors = [
-    DoctorModel(
-      id: 'doc_1',
-      name: 'Dr. Santosh Kumar Singh',
-      email: 'santosh.singh@aarogyaplus.com',
-      photoUrl: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=2070&auto=format&fit=crop',
-      specialty: 'Cardiologist',
-      qualifications: 'MBBS, MD (Cardiology), FACC',
-      experienceYears: 15,
-      consultationFee: 1200,
-      rating: 4.9,
-      ratingCount: 320,
-      bio: 'Renowned Cardiologist with 15+ years of experience in interventional cardiology, heart failure management, and preventive heart care.',
-      isActive: true,
-      availability: {
-        'Monday': [
-          const TimeSlot(startTime: '09:00', endTime: '09:30'),
-          const TimeSlot(startTime: '09:30', endTime: '10:00'),
-          const TimeSlot(startTime: '10:00', endTime: '10:30'),
-          const TimeSlot(startTime: '14:00', endTime: '14:30'),
-        ],
-        'Tuesday': [
-          const TimeSlot(startTime: '10:00', endTime: '10:30'),
-          const TimeSlot(startTime: '11:00', endTime: '11:30'),
-        ],
-        'Wednesday': [
-          const TimeSlot(startTime: '09:00', endTime: '09:30'),
-          const TimeSlot(startTime: '15:30', endTime: '16:00'),
-        ],
-      },
-    ),
-    DoctorModel(
-      id: 'doc_2',
-      name: 'Dr. Neha Sharma',
-      email: 'neha.sharma@aarogyaplus.com',
-      photoUrl: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=2070&auto=format&fit=crop',
-      specialty: 'Dermatologist',
-      qualifications: 'MBBS, MD (Dermatology)',
-      experienceYears: 10,
-      consultationFee: 800,
-      rating: 4.8,
-      ratingCount: 215,
-      bio: 'Expert Dermatologist specializing in clinical and cosmetic dermatology. Extensive experience treating severe acne, eczema, and skin aging.',
-      isActive: true,
-      availability: {
-        'Monday': [
-          const TimeSlot(startTime: '11:00', endTime: '11:30'),
-          const TimeSlot(startTime: '11:30', endTime: '12:00'),
-        ],
-        'Thursday': [
-          const TimeSlot(startTime: '09:00', endTime: '09:30'),
-          const TimeSlot(startTime: '14:00', endTime: '14:30'),
-        ],
-        'Friday': [
-          const TimeSlot(startTime: '10:00', endTime: '10:30'),
-          const TimeSlot(startTime: '10:30', endTime: '11:00'),
-        ],
-      },
-    ),
-  ];
-
-  final List<AppointmentModel> _mockAppointments = [
-    AppointmentModel(
-      id: 'apt_1',
-      patientId: 'google_mock_user',
-      doctorId: 'doc_1',
-      patientName: 'Rahul Sharma',
-      doctorName: 'Dr. Priya Mehta',
-      doctorSpecialty: 'Cardiologist',
-      doctorPhotoUrl: 'https://ui-avatars.com/api/?name=Priya+Mehta&background=0F9D8C&color=fff&size=200',
-      date: DateTime.now().add(const Duration(days: 2)),
-      timeSlot: '09:00 - 09:30',
-      status: AppointmentStatus.accepted,
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      updatedAt: DateTime.now(),
-    ),
-    AppointmentModel(
-      id: 'apt_2',
-      patientId: 'google_mock_user',
-      doctorId: 'doc_3',
-      patientName: 'Rahul Sharma',
-      doctorName: 'Dr. Ananya Singh',
-      doctorSpecialty: 'Dermatologist',
-      doctorPhotoUrl: 'https://ui-avatars.com/api/?name=Ananya+Singh&background=2ECC71&color=fff&size=200',
-      date: DateTime.now().add(const Duration(days: 5)),
-      timeSlot: '10:00 - 10:30',
-      status: AppointmentStatus.pending,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-    AppointmentModel(
-      id: 'apt_3',
-      patientId: 'google_mock_user',
-      doctorId: 'doc_2',
-      patientName: 'Rahul Sharma',
-      doctorName: 'Dr. Rajesh Kumar',
-      doctorSpecialty: 'General Physician',
-      doctorPhotoUrl: 'https://ui-avatars.com/api/?name=Rajesh+Kumar&background=3D5AFE&color=fff&size=200',
-      date: DateTime.now().subtract(const Duration(days: 3)),
-      timeSlot: '14:00 - 14:30',
-      status: AppointmentStatus.completed,
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-      updatedAt: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-  ];
-
-  final List<PatientModel> _mockPatients = [
-    const PatientModel(uid: 'google_mock_user', age: 28, gender: 'Male', bloodGroup: 'O+'),
-    const PatientModel(uid: 'patient_2', age: 35, gender: 'Female', bloodGroup: 'A+'),
-    const PatientModel(uid: 'patient_3', age: 45, gender: 'Male', bloodGroup: 'B+'),
-  ];
-
-  final List<HealthTipModel> _mockHealthTips = [
-    HealthTipModel(
-      id: 'tip_1',
-      title: 'Stay Hydrated This Summer',
-      content: 'Drink at least 8-10 glasses of water daily. Dehydration can lead to headaches, fatigue, and reduced cognitive function. Add lemon or cucumber for a refreshing twist.',
-      category: 'Wellness',
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-      createdBy: 'admin',
-    ),
-    HealthTipModel(
-      id: 'tip_2',
-      title: 'Importance of Regular Health Checkups',
-      content: 'Annual health screenings can detect potential health issues early. Don\'t skip your routine blood tests, blood pressure checks, and eye exams.',
-      category: 'Prevention',
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-      createdBy: 'admin',
-    ),
-    HealthTipModel(
-      id: 'tip_3',
-      title: 'Managing Stress with Mindfulness',
-      content: 'Practice 10 minutes of meditation daily to reduce stress hormones. Deep breathing exercises and progressive muscle relaxation can significantly improve mental health.',
-      category: 'Mental Health',
-      createdAt: DateTime.now().subtract(const Duration(days: 7)),
-      createdBy: 'admin',
-    ),
-    HealthTipModel(
-      id: 'tip_4',
-      title: 'Heart-Healthy Diet Tips',
-      content: 'Include omega-3 rich foods like fish, walnuts, and flaxseeds. Reduce sodium intake and choose whole grains over refined carbs for better cardiovascular health.',
-      category: 'Nutrition',
-      createdAt: DateTime.now().subtract(const Duration(days: 10)),
-      createdBy: 'admin',
-    ),
-  ];
 }

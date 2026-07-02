@@ -39,4 +39,24 @@ class HealthTipModel {
         'createdAt': createdAt.toIso8601String(),
         'createdBy': createdBy,
       };
+
+  HealthTipModel copyWith({
+    String? id,
+    String? title,
+    String? content,
+    String? imageUrl,
+    String? category,
+    DateTime? createdAt,
+    String? createdBy,
+  }) {
+    return HealthTipModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      imageUrl: imageUrl ?? this.imageUrl,
+      category: category ?? this.category,
+      createdAt: createdAt ?? this.createdAt,
+      createdBy: createdBy ?? this.createdBy,
+    );
+  }
 }
