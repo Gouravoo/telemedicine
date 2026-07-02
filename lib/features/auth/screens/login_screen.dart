@@ -41,6 +41,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _passwordController.text,
       );
       ref.read(currentUserProvider.notifier).state = user;
+      
+      // Stop loading BEFORE navigation
+      if (mounted) setState(() => _isLoading = false);
+      
       if (mounted) {
         switch (user.role) {
           case UserRole.patient:
@@ -56,12 +60,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed: $e')),
+        setState(() => _isLoading = false);
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Login Failed'),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -71,6 +84,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final authService = ref.read(authServiceProvider);
       final user = await authService.signInWithGoogle();
       ref.read(currentUserProvider.notifier).state = user;
+      
+      if (mounted) setState(() => _isLoading = false);
+      
       if (mounted) {
         switch (user.role) {
           case UserRole.patient:
@@ -86,12 +102,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google login failed: $e')),
+        setState(() => _isLoading = false);
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Google Login Failed'),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 

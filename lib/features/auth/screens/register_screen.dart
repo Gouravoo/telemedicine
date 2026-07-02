@@ -52,6 +52,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         phone: _phoneController.text.trim(),
       );
       ref.read(currentUserProvider.notifier).state = user;
+      
+      if (mounted) setState(() => _isLoading = false);
+      
       if (mounted) {
         switch (user.role) {
           case UserRole.patient:
@@ -67,12 +70,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed: $e')),
+        setState(() => _isLoading = false);
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Registration Failed'),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
