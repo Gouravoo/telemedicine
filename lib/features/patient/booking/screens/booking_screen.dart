@@ -238,13 +238,16 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
       patientPhotoUrl: user?.photoUrl,
       date: _getNextDate(_selectedDay!),
       timeSlot: '${_selectedSlot!.startTime} - ${_selectedSlot!.endTime}',
-      status: AppointmentStatus.pending,
+      status: AppointmentStatus.accepted, // Auto-accept for demo
       agoraChannelName: 'call_${const Uuid().v4().substring(0, 8)}',
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
 
     await firestoreService.createAppointment(appointment);
+    ref.invalidate(patientAppointmentsProvider(user?.uid ?? ''));
+    ref.invalidate(allAppointmentsProvider);
+    
     setState(() {
       _isBooking = false;
       _booked = true;

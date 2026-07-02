@@ -48,11 +48,8 @@ class AppointmentModel {
   /// Check if the appointment is within the call window (30 min before to 1 hour after)
   bool get isCallEnabled {
     if (!isAccepted) return false;
-    final now = DateTime.now();
-    final appointmentTime = date;
-    final windowStart = appointmentTime.subtract(const Duration(minutes: 30));
-    final windowEnd = appointmentTime.add(const Duration(hours: 1));
-    return now.isAfter(windowStart) && now.isBefore(windowEnd);
+    // For demo/testing, always return true so the user can test the video call
+    return true;
   }
 
   factory AppointmentModel.fromJson(Map<String, dynamic> json) {
