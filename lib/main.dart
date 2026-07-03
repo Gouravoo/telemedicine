@@ -9,8 +9,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   await Supabase.initialize(
-    url: 'YOUR_SUPABASE_URL',
-    anonKey: 'YOUR_SUPABASE_ANON_KEY',
+    url: 'https://bzckanmfgkcljvsroamr.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6Y2thbm1mZ2tjbGp2c3JvYW1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMjgxMzIsImV4cCI6MjA5ODYwNDEzMn0.ynKAmkCD2sTr4N62uhuB-r_OND0nnQJokSCbVWUqXpE',
   );
   
   runApp(const ProviderScope(child: AarogyaPlusApp()));

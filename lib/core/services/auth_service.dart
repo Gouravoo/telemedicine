@@ -156,11 +156,12 @@ class AuthService {
     }
   }
 
-  Future<UserModel> registerPatient({
+  Future<UserModel> registerUser({
     required String name,
     required String email,
     required String password,
     String? phone,
+    UserRole role = UserRole.patient,
   }) async {
     try {
       final AuthResponse res = await _supabase.auth.signUp(
@@ -177,7 +178,7 @@ class AuthService {
         name: name,
         email: email,
         phone: phone,
-        role: UserRole.patient,
+        role: role,
         createdAt: DateTime.now(),
       );
       

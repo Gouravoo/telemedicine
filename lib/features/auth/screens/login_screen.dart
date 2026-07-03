@@ -245,56 +245,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: AppSpacing.xxl),
 
-                      // Google Sign-In button
-                      SizedBox(
-                        width: double.infinity,
-                        height: AppSpacing.buttonHeight,
-                        child: OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _loginWithGoogle,
-                          icon: Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'G',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                          label: const Text('Continue with Google'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textPrimary,
-                            side: const BorderSide(color: AppColors.border),
-                            shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppSpacing.buttonRadius),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xl),
+                      // Google Sign-In button temporarily hidden
+                      // const SizedBox(height: AppSpacing.xl),
 
-                      // Divider
-                      Row(
-                        children: [
-                          const Expanded(child: Divider()),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.base),
-                            child: Text(
-                              'or sign in with email',
-                              style: AppTextStyles.caption,
-                            ),
-                          ),
-                          const Expanded(child: Divider()),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.xl),
 
                       // Email/Password form
                       Form(

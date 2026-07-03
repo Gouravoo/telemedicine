@@ -26,6 +26,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _ageController = TextEditingController();
   String? _selectedGender;
   String? _selectedBloodGroup;
+  UserRole _selectedRole = UserRole.patient;
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -45,11 +46,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     try {
       final authService = ref.read(authServiceProvider);
-      final user = await authService.registerPatient(
+      final user = await authService.registerUser(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
         phone: _phoneController.text.trim(),
+        role: _selectedRole,
       );
       ref.read(currentUserProvider.notifier).state = user;
       
@@ -142,6 +144,52 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: AppSpacing.base),
 
                   // Password
+                  TextFormField(
+                    controller: _passwordController,
+                    validator: Validators.password,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.base),
+
+                  // Role Selection
+                  DropdownButtonFormField<UserRole>(
+                    value: _selectedRole,
+                    decoration: const InputDecoration(
+                      hintText: 'Register As',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: UserRole.patient,
+                        child: Text('Patient'),
+                      ),
+                      DropdownMenuItem(
+                        value: UserRole.doctor,
+                        child: Text('Doctor'),
+                      ),
+                      DropdownMenuItem(
+                        value: UserRole.admin,
+                        child: Text('Admin'),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setState(() => _selectedRole = v);
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.base),
                   TextFormField(
                     controller: _passwordController,
                     validator: Validators.password,
