@@ -87,13 +87,22 @@ class AuthService {
       if (response != null) {
         _currentUser = UserModel.fromJson(response);
       } else {
+        // User profile doesn't exist yet (e.g., email confirmation was ON during registration)
+        // Create it now using metadata from signUp
+        final roleName = user.userMetadata?['role'] as String? ?? 'patient';
+        final role = UserRole.values.firstWhere(
+          (r) => r.name == roleName,
+          orElse: () => UserRole.patient,
+        );
         _currentUser = UserModel(
           uid: user.id,
           name: user.userMetadata?['full_name'] ?? email.split('@')[0],
           email: email,
-          role: UserRole.patient,
+          role: role,
           createdAt: DateTime.now(),
         );
+        // Save to database
+        await _supabase.from('users').upsert(_currentUser!.toJson());
       }
       return _currentUser!;
     } catch (e) {
@@ -167,7 +176,7 @@ class AuthService {
       final AuthResponse res = await _supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'full_name': name},
+        data: {'full_name': name, 'role': role.name},
       );
       
       final user = res.user;
@@ -182,7 +191,12 @@ class AuthService {
         createdAt: DateTime.now(),
       );
       
-      await _supabase.from('users').insert(_currentUser!.toJson());
+      // Only insert into users table if we have a valid session
+      // (i.e., email confirmation is disabled in Supabase)
+      if (res.session != null) {
+        await _supabase.from('users').upsert(_currentUser!.toJson());
+      }
+      
       return _currentUser!;
     } catch (e) {
       throw Exception('Registration failed: $e');
