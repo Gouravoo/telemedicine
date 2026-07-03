@@ -1,3 +1,4 @@
+// @ts-nocheck - This is a Deno/Supabase Edge Function, not a Node.js file
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { RtcTokenBuilder, RtcRole } from "npm:agora-access-token@2.0.4";
 
@@ -51,8 +52,9 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     });
